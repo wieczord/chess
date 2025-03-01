@@ -1,5 +1,6 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
+# class Offset:
 
 DIAGONAL_OFFSETS = [(1, 1), (1, -1), (-1, 1), (-1, -1)]
 STRAIGHT_OFFSETS = [(1, 0), (0, 1), (-1, 0), (0, -1)]
@@ -44,7 +45,7 @@ class Piece:
     black_unicode: str
     offsets: list[tuple[int, int]]
     ranged: bool = False
-    state: PieceState = PieceState()
+    state: PieceState = field(default_factory=PieceState)
 
     def __init__(self, color: Color):
         self.is_white = color == Color.WHITE

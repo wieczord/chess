@@ -1,11 +1,11 @@
-from board import Board
+from game.board import Board
 
 
 def test_possible_moves_for_pawn__white_initial_position():
     board = Board()
     board.initialize_board()
 
-    assert board.possible_moves("a", 2) == {"a3", "a4"}
+    assert board.possible_moves("a2") == {"a3", "a4"}
     # assert board.possible_moves("b2") == {"b3", "b4"}
     # assert board.possible_moves("c2") == {"c3", "c4"}
     # assert board.possible_moves("d2") == {"d3", "d4"}

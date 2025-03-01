@@ -1,6 +1,48 @@
-from piece import Rook, Color, Knight, Bishop, Queen, King, Pawn, Piece
+from game.piece import Rook, Color, Knight, Bishop, Queen, King, Pawn, Piece
 
-Position = str
+type AlgebraicNotation = str
+
+class OutOfBoundsError(Exception):
+    pass
+class Position:
+    def __init__(self, rank_index: int, file_index: int) -> None:
+        self._ensure_bounds(rank_index, file_index)
+
+        self.rank_index = rank_index
+        self.file_index = file_index
+
+    def __iter__(self):
+        return iter((self.rank_index, self.file_index))
+
+    def _ensure_bounds(self, x: int, y: int) -> bool:
+        in_bounds = 0 <= x < BOARD_SIZE and 0 <= y < BOARD_SIZE
+        if not in_bounds:
+            raise OutOfBoundsError("Position out of bounds")
+    @classmethod
+    def from_algebraic_notation(cls, notation: AlgebraicNotation) -> "Position":
+        assert len(notation) == 2
+
+        letter_row = {"a": 0, "b": 1, "c": 2, "d": 3, "e": 4, "f": 5, "g": 6, "h": 7}
+        letter, number = notation
+
+        row = BOARD_SIZE - int(number)
+        column = letter_row[letter]
+
+        return cls(row, column)
+
+    @classmethod
+    def from_idx(cls, idx: tuple[int, int]) -> "Position":
+        row, column = idx
+        return cls(row, column)
+
+    def get_algebraic_notation(self) -> AlgebraicNotation:
+        file_map = {0: "a", 1: "b", 2: "c", 3: "d", 4: "e", 5: "f", 6: "g", 7: "h"}
+        return f"{file_map[self.file_index]}{BOARD_SIZE - self.rank_index}"
+
+    def add_offset(self, offset: tuple[int, int]) -> "Position":
+        return Position(self.rank_index + offset[0], self.file_index + offset[1])
+
+
 
 BOARD_SIZE = 8
 
@@ -17,9 +59,7 @@ class Engine:
         return piece.possible_moves(position, self.board)
 
 
-EMPTY = " "
-
-type BoardIndex = tuple[int, int]
+EMPTY = " " # TODO null object pattern
 
 
 class Board:
@@ -29,14 +69,6 @@ class Board:
     def print(self) -> None:
         for x in self._board:
             print(x, end="\n")
-
-    def __getitem__(self, position: Position) -> Piece | None:
-        x, y = self._idx_from_algebraic_notation(position)
-        return self._board[x][y]
-
-    def __setitem__(self, position: Position, piece: Piece | None) -> None:
-        x, y = self._idx_from_algebraic_notation(position)
-        self._board[x][y] = piece
 
     def initialize_board(self):
         # pawns (white 0,1) black (-2, -1)
@@ -64,23 +96,26 @@ class Board:
         ]
         self._board[1] = [Pawn(Color.BLACK) for _ in range(BOARD_SIZE)]
 
+    def _at(self, position: Position) -> Piece | str:
+        return self._board[position.rank_index][position.file_index]
     def _is_available_for_move(self, position: Position, piece: Piece) -> bool:
         return self._is_empty(position) or self._is_enemy(position, piece.color)
 
     def _is_empty(self, position: Position) -> bool:
-        return self[position] == EMPTY
+        return self._at(position) == EMPTY
 
     def _is_enemy(self, position: Position, color: Color) -> bool:
-        piece = self[position]
+        piece = self._at(position)
         return piece is not None and piece.color != color
 
     def _is_friendly(self, position: Position, color: Color) -> bool:
-        piece = self[position]
+        piece = self._at(position)
         return piece is not None and piece.color == color
 
-    def possible_moves(self, position: Position) -> set[Position]:
-        if not self._is_empty(position):
-            piece = self[position]
+    def possible_moves(self, notation: AlgebraicNotation) -> set[Position]:
+        position = Position.from_algebraic_notation(notation)
+        if not self._is_empty(position): # TODO just get it
+            piece = self._at(position)
             return self._generate_moves_from_offsets(position, piece.offsets)
         return []
 
@@ -88,58 +123,39 @@ class Board:
             self, position: Position, offsets: list[Position]
     ) -> set[Position]:
         moves = set()
-        for offset in offsets:
-            new_position = self._position_from_offset(position, offset)
+        for _, offset in offsets.items():
+            for off in offset:
+                try:
+                    new_position = position.add_offset(off)
+                except OutOfBoundsError:
+                    continue
 
-            if new_position is None:
-                continue
+                if new_position is None:
+                    continue
 
-            if not self._is_position_within_bounds(new_position):
-                continue
-
-            if self._is_available_for_move(new_position, self[position]):
-                moves.add(new_position)
+                if self._is_available_for_move(new_position, self._at(position)):
+                    moves.add(new_position)
 
         return moves
 
     # TODO - enkapsulacja pozycji i indeksów w jedną klassę
-    def _is_position_within_bounds(self, position: Position) -> bool:
-        x, y = self._idx_from_algebraic_notation(position)
-        return 0 <= x < BOARD_SIZE and 0 <= y < BOARD_SIZE
 
-    def _position_from_offset(self, position: Position, offset: Position) -> Position | None:
-        x, y = self._idx_from_algebraic_notation(position)
+    def _position_from_offset(
+            self, position: Position, offset: Position
+    ) -> Position | None:
+        x, y = position
         a, b = offset
-        try:  # TODO - to jest brzydkie
-            return self._algebraic_notation_from_idx((x + a, y + b))
-        except KeyError:
-            return None
+        new_position = Position(x + a, y + b)
+        return new_position
 
     # TODO - skosne ruchy pionkiem tylko przy biciu, ruch o 2 pola tylko na początku
-    def _idx_from_algebraic_notation(self, notation: str) -> Position:
-        assert len(notation) == 2
-
-        letter_row = {"a": 0, "b": 1, "c": 2, "d": 3, "e": 4, "f": 5, "g": 6, "h": 7}
-        letter, number = notation
-
-        row = BOARD_SIZE - int(number)
-        column = letter_row[letter]
-        return row, column
-
-    # TODO można to wygenerować (computed_property czy coś takiego)
-    def _algebraic_notation_from_idx(self, idx: BoardIndex) -> str:
-        row, column = idx
-        letter_row = {0: "a", 1: "b", 2: "c", 3: "d", 4: "e", 5: "f", 6: "g", 7: "h"}
-        return f"{letter_row[column]}{BOARD_SIZE - row}"
 
     def move(self, start: Position, end: Position) -> None:  # TODO przetestować
         piece = self[start]
         if piece is None:
             raise ValueError("No piece at start position")
 
-        possible_moves = self.possible_moves(
-            start
-        )
+        possible_moves = self.possible_moves(start)
 
         # TODO no w sumie kto ma wiedziec jak sie rusza jak nie bierka
         # TODO plus mozna trzymac w niej stan jak np pierwszy ruch czy prawo do roszady
