@@ -1,9 +1,14 @@
-from game.piece import Rook, Color, Knight, Bishop, Queen, King, Pawn, Piece
+import inspect
+
+from game.piece import Rook, Color, Knight, Bishop, Queen, King, Pawn, Piece, Offsets
 
 type AlgebraicNotation = str
 
+
 class OutOfBoundsError(Exception):
     pass
+
+
 class Position:
     def __init__(self, rank_index: int, file_index: int) -> None:
         self._ensure_bounds(rank_index, file_index)
@@ -14,10 +19,19 @@ class Position:
     def __iter__(self):
         return iter((self.rank_index, self.file_index))
 
+    def __repr__(self) -> str:
+        return f"Position({self.rank_index}, {self.file_index}, {self.get_algebraic_notation()})"
+
+    def __eq__(self, other: "Position") -> bool:
+        return self.rank_index == other.rank_index and self.file_index == other.file_index
+
+    def __hash__(self) -> int:
+        return hash((self.rank_index, self.file_index))
     def _ensure_bounds(self, x: int, y: int) -> bool:
         in_bounds = 0 <= x < BOARD_SIZE and 0 <= y < BOARD_SIZE
         if not in_bounds:
             raise OutOfBoundsError("Position out of bounds")
+
     @classmethod
     def from_algebraic_notation(cls, notation: AlgebraicNotation) -> "Position":
         assert len(notation) == 2
@@ -40,8 +54,7 @@ class Position:
         return f"{file_map[self.file_index]}{BOARD_SIZE - self.rank_index}"
 
     def add_offset(self, offset: tuple[int, int]) -> "Position":
-        return Position(self.rank_index + offset[0], self.file_index + offset[1])
-
+        return Position(self.rank_index + offset[0], self.file_index + offset[1]) # TODO dodaje sie na odwrót, odwrocic offsety czy file z rankiem pojebalem
 
 
 BOARD_SIZE = 8
@@ -59,7 +72,7 @@ class Engine:
         return piece.possible_moves(position, self.board)
 
 
-EMPTY = " " # TODO null object pattern
+EMPTY = " "  # TODO null object pattern
 
 
 class Board:
@@ -98,6 +111,7 @@ class Board:
 
     def _at(self, position: Position) -> Piece | str:
         return self._board[position.rank_index][position.file_index]
+
     def _is_available_for_move(self, position: Position, piece: Piece) -> bool:
         return self._is_empty(position) or self._is_enemy(position, piece.color)
 
@@ -106,7 +120,7 @@ class Board:
 
     def _is_enemy(self, position: Position, color: Color) -> bool:
         piece = self._at(position)
-        return piece is not None and piece.color != color
+        return piece != EMPTY and piece.color != color
 
     def _is_friendly(self, position: Position, color: Color) -> bool:
         piece = self._at(position)
@@ -114,39 +128,33 @@ class Board:
 
     def possible_moves(self, notation: AlgebraicNotation) -> set[Position]:
         position = Position.from_algebraic_notation(notation)
-        if not self._is_empty(position): # TODO just get it
+        if not self._is_empty(position):  # TODO just get it
             piece = self._at(position)
-            return self._generate_moves_from_offsets(position, piece.offsets)
+            return self._generate_moves_from_offsets(position, piece)
         return []
 
     def _generate_moves_from_offsets(
-            self, position: Position, offsets: list[Position]
+        self, position: Position, piece: Piece
     ) -> set[Position]:
         moves = set()
-        for _, offset in offsets.items():
-            for off in offset:
-                try:
-                    new_position = position.add_offset(off)
-                except OutOfBoundsError:
-                    continue
-
-                if new_position is None:
-                    continue
-
+        offsets = piece.offsets
+        move_offsets = offsets.move_or_attack + (
+            offsets.first_move if not piece.state.has_moved else []
+        )
+        try:
+            for offset in move_offsets:
+                new_position = position.add_offset(offset)
                 if self._is_available_for_move(new_position, self._at(position)):
                     moves.add(new_position)
 
+            for offset in offsets.special_attack:
+                new_position = position.add_offset(offset)
+                if self._is_enemy(new_position, self._at(position)):
+                    moves.add(new_position)
+        except OutOfBoundsError:
+            pass
+
         return moves
-
-    # TODO - enkapsulacja pozycji i indeksów w jedną klassę
-
-    def _position_from_offset(
-            self, position: Position, offset: Position
-    ) -> Position | None:
-        x, y = position
-        a, b = offset
-        new_position = Position(x + a, y + b)
-        return new_position
 
     # TODO - skosne ruchy pionkiem tylko przy biciu, ruch o 2 pola tylko na początku
 
@@ -167,14 +175,19 @@ class Board:
 
 
 def main() -> None:
-    board = Board()
-    board.initialize_board()
-    board.print()
-    e4 = board._idx_from_algebraic_notation("e4")
-    board.move("e2", "e3")
-    board.move("e2", "e5")
-    print()
-    board.print()
+    # board = Board()
+    # board.initialize_board()
+    # board.print()
+    # e4 = board._idx_from_algebraic_notation("e4")
+    # board.move("e2", "e3")
+    # board.move("e2", "e5")
+    # print()
+    # board.print()
+    pawn = Pawn(Color.WHITE)
+    print("Attributes of pawn:", dir(pawn))  # List all attributes
+    print("Is instance of Piece?", isinstance(pawn, Piece))
+    print("Fields of Pawn:", inspect.getmembers(pawn, lambda a: not callable(a)))
+    print(pawn.state)
 
 
 if __name__ == "__main__":
