@@ -2,6 +2,8 @@ from abc import ABC
 from dataclasses import dataclass, field
 from enum import Enum
 
+from game.position import Position
+
 
 class Offsets:
     move: list[tuple[int, int]]
@@ -81,6 +83,7 @@ class Piece(ABC):
     offsets: Offsets = field(init=False)
     ranged: bool = False
     state: PieceState = field(default_factory=PieceState, init=False)
+    actual_position: Position = field(default=None, init=False)
 
     def __repr__(self) -> str:
         return self.white_unicode if self.is_white else self.black_unicode
@@ -90,7 +93,12 @@ class Piece(ABC):
         return self.color == Color.WHITE
 
 
-@dataclass
+class Empty:
+    def __repr__(self) -> str:
+        return " "
+
+
+@dataclass(repr=False)
 class Pawn(Piece):
     white_unicode: str = "♙"
     black_unicode: str = "♟"
@@ -101,14 +109,15 @@ class Pawn(Piece):
         )
 
 
-@dataclass
+@dataclass(repr=False)
 class Rook(Piece):
     white_unicode = "♖"
     black_unicode = "♜"
     offsets = STRAIGHT_OFFSETS
+    ranged = True
 
 
-@dataclass
+@dataclass(repr=False)
 class Knight(Piece):
     white_unicode = "♘"
     black_unicode = "♖"
@@ -117,27 +126,27 @@ class Knight(Piece):
         self.offsets: Offsets = KNIGHT_OFFSETS
 
 
-@dataclass
+@dataclass(repr=False)
 class Bishop(Piece):
     white_unicode = "♗"
     black_unicode = "♝"
+    ranged = True
 
     def __post_init__(self):
         self.offsets: Offsets = DIAGONAL_OFFSETS
-        self.ranged = True
 
 
-@dataclass
+@dataclass(repr=False)
 class Queen(Piece):
     white_unicode = "♕"
     black_unicode = "♛"
+    ranged = True
 
     def __post_init__(self):
         self.offsets: Offsets = STRAIGHT_OFFSETS + DIAGONAL_OFFSETS
-        self.ranged = True
 
 
-@dataclass
+@dataclass(repr=False)
 class King(Piece):
     white_unicode = "♔"
     black_unicode = "♚"

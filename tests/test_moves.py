@@ -1,4 +1,5 @@
-from game.board import Board, Position
+from game.board import Board
+from game.position import Position
 import pytest
 
 
